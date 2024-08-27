@@ -1,77 +1,60 @@
-import React, {
+import {
   useRef,
   createContext as createContextOrg,
   useContext,
   useCallback,
   useSyncExternalStore,
 } from "react";
+import { ExternalStoreType, FieldsType } from "../types";
 
-export default function createContext<Store>(initialState: Store) {
-  function useStoreData(): {
-    get: () => Store;
-    set: (value: Partial<Store>) => void;
-    subscribe: (callback: () => void) => () => void;
-  } {
-    const store = useRef(initialState);
+function useStoreData(initialState: FieldsType): ExternalStoreType {
+  const store = useRef(initialState);
 
-    const get = useCallback(() => store.current, []);
+  const get = useCallback(() => store.current, []);
 
-    const subscribers = useRef(new Set<() => void>());
+  const subscribers = useRef(new Set<() => void>());
 
-    const set = useCallback((value: Partial<Store>) => {
-      store.current = { ...store.current, ...value };
-      subscribers.current.forEach((callback) => callback());
-    }, []);
+  const set = useCallback((value: Partial<FieldsType>) => {
+    store.current = { ...store.current, ...value };
+    subscribers.current.forEach((callback) => callback());
+  }, []);
 
-    const subscribe = useCallback((callback: () => void) => {
-      subscribers.current.add(callback);
-      return () => subscribers.current.delete(callback);
-    }, []);
+  const subscribe = useCallback((callback: () => void) => {
+    subscribers.current.add(callback);
+    return () => subscribers.current.delete(callback);
+  }, []);
 
-    return {
-      get,
-      set,
-      subscribe,
-    };
-  }
+  const storeInstance: ExternalStoreType = { get, set, subscribe };
 
-  type UseStoreDataReturnType = ReturnType<typeof useStoreData>;
-
-  const StoreContext = createContextOrg<UseStoreDataReturnType | null>(null);
-
-  function Provider({ children }: { children: React.ReactNode }) {
-    return (
-      <StoreContext.Provider value={useStoreData()}>
-        {children}
-      </StoreContext.Provider>
-    );
-  }
-
-  function useStore<SelectorOutput>(
-    selector: (store: Store) => SelectorOutput,
-  ): [SelectorOutput, (value: Partial<Store>) => void] {
-    const store = useContext(StoreContext);
-    if (!store) {
-      throw new Error("Store not found");
-    }
-
-    const state = useSyncExternalStore(
-      store.subscribe,
-      () => selector(store.get()),
-      () => selector(initialState),
-    );
-
-    return [state, store.set];
-  }
-
-  return {
-    Provider,
-    useStore,
-  };
+  return storeInstance;
 }
 
-export const { Provider, useStore } = createContext({
-  city: "",
-  arrival: "",
-  departure: "",
-});
+const StoreContext = createContextOrg<ExternalStoreType | null>(null);
+const Provider = StoreContext.Provider;
+
+function useStore<SelectorOutput>(
+  selector: (store: FieldsType) => SelectorOutput,
+): [SelectorOutput, (value: Partial<FieldsType>) => void] {
+  const store = useContext(StoreContext);
+  if (!store) {
+    throw new Error("Store not found");
+  }
+
+  const state = useSyncExternalStore(
+    store.subscribe,
+    () => selector(store.get()),
+    () => selector({
+      city: "",
+      arrival: "",
+      departure: "",
+    }),
+  );
+
+  return [state, store.set];
+}
+
+export {
+  Provider,
+  useStore,
+  useStoreData
+};
